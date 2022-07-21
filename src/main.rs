@@ -11,6 +11,10 @@ use sea_orm::DatabaseConnection;
 use sea_orm::{entity::*, query::*};
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::rc::Weak;
+use actix_http::client::SendRequestError::Response;
+// use actix_http::Response;
+use futures_util::io::BufReader;
 use tera::{Tera};
 
 
@@ -41,7 +45,7 @@ struct FlashData {
 async fn list(
     req: HttpRequest,
     data: web::Data<AppState>,
-    opt_flash: Option<actix_flash::Message<FlashData>>,
+    // opt_flash: Option<actix_flash::Message<FlashData>>,
 ) -> Result<HttpResponse, Error> {
     let template = &data.templates;
     let conn = &data.conn;
@@ -67,17 +71,18 @@ async fn list(
     ctx.insert("posts_per_page", &posts_per_page);
     ctx.insert("num_pages", &num_pages);
 
-    if let Some(flash) = opt_flash {
-        let flash_inner = flash.into_inner();
-        ctx.insert("flash", &flash_inner);
-    }
+    // if let Some(flash) = opt_flash {
+    //     let flash_inner = flash.into_inner();
+    //     ctx.insert("flash", &flash_inner);
+    // }
 
-    let body = template
-        .render("index.html.tera", &ctx)
-        .map_err(|_| error::ErrorInternalServerError("Template error."))?;
+    // let body = template
+    //     .render("index.html.tera", &ctx)
+    //     .map_err(|_| error::ErrorInternalServerError("Template error."))?;
 
-    Ok(HttpResponse::Ok().content_type("text/html").body(body))
+    Ok(HttpResponse::Ok().content_type("text/html").body("body"))
 }
+
 
 /**
  * get "new" request
@@ -93,13 +98,13 @@ async fn new(data: web::Data<AppState>) -> Result<HttpResponse, Error> {
 }
 
 /**
- * get "create" resquest
+ * get "create" request
  */
 #[post("/")]
 async fn create(
     data: web::Data<AppState>,
     post_form: web::Form<post::Model>,
-) -> actix_flash::Response<HttpResponse, FlashData> {
+) -> HttpResponse {
     let conn = &data.conn;
 
     let form = post_form.into_inner();
@@ -119,7 +124,8 @@ async fn create(
         message: "Post successfully added.".to_owned(),
     };
 
-    actix_flash::Response::with_redirect(flash, "/")
+    // actix_flash::Response::with_redirect(flash, "/")
+    HttpResponse::Ok().body("ok from create response")
 }
 
 #[get("/{id}")]
@@ -146,7 +152,7 @@ async fn update(
     data: web::Data<AppState>,
     id: web::Path<i32>,
     post_form: web::Form<post::Model>,
-) -> actix_flash::Response<HttpResponse, FlashData> {
+) -> HttpResponse {
     let conn = &data.conn;
     let form = post_form.into_inner();
 
@@ -164,14 +170,15 @@ async fn update(
         message: "Post successfully updated".to_owned(),
     };
 
-    actix_flash::Response::with_redirect(flash, "/")
+    // actix_flash::Response::with_redirect(flash, "/")
+    HttpResponse::Ok().body("response from update response")
 }
 
 #[post("'/delete/{id}")]
 async fn delete(
     data: web::Data<AppState>,
     id: web::Path<i32>,
-) -> actix_flash::Response<HttpResponse, FlashData> {
+) -> HttpResponse {
     let conn = &data.conn;
 
     let post: post::ActiveModel = Post::find_by_id(id.into_inner())
@@ -186,7 +193,8 @@ async fn delete(
         kind: "success".to_owned(),
         message: "Post successfully deleted.".to_owned(),
     };
-    actix_flash::Response::with_redirect(flash, "/")
+    // actix_flash::Response::with_redirect(flash, "/")
+    HttpResponse::Ok().body("response from delete response")
 }
 
 pub fn init(cfg: &mut web::ServiceConfig) {
@@ -216,13 +224,14 @@ async fn main() -> std::io::Result<()> {
     let state = AppState { templates, conn };
 
     let mut listenfd = ListenFd::from_env();
+
     let mut server = HttpServer::new(move || {
         App::new()
-            .data(state.clone())
+            .app_data(state.clone())
             .wrap(middleware::Logger::default())
-            .wrap(actix_flash::Flash::default())
+            // .wrap(actix_flash::Flash::default())
             .configure(init)
-            .service(fs::Files::new("/static", "./static").show_files_listing())
+            // .service(fs::Files::new("/static","./static").show_files_listing())
     });
 
     server = match listenfd.take_tcp_listener(0)? {
